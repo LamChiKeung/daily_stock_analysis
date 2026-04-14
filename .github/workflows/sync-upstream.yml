@@ -6,15 +6,15 @@ on:
   workflow_dispatch:      # 允许手动触发
 
 permissions:
-  contents: write  # 添加写入权限
+  contents: write  # 必须添加写入权限
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # 强制使用Node.js 24
-    
     steps:
+      - name: 检出代码
+        uses: actions/checkout@v4  # 使用最新版本v4
+        
       - name: 同步上游仓库更改
         uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
         with:
