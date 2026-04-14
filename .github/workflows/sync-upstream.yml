@@ -1,24 +1,37 @@
-name: 自动同步上游更新
+name: 简单同步上游更新
 
 on:
   schedule:
-    - cron: '0 2 * * 1'  # 每周一凌晨2点自动检查
+    - cron: '0 2 * * 1'  # 每周一凌晨2点
   workflow_dispatch:      # 允许手动触发
 
 permissions:
-  contents: write  # 必须添加写入权限
+  contents: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4  # 使用最新版本v4
-        
-      - name: 同步上游仓库更改
-        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
+        uses: actions/checkout@v4
         with:
-          upstream_sync_repo: ZhuLinsen/daily_stock_analysis
-          upstream_sync_branch: main
-          target_sync_branch: main
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # 获取完整历史记录
+
+      - name: 配置Git身份
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
+
+      - name: 添加上游仓库
+        run: |
+          git remote add upstream https://github.com/ZhuLinsen/daily_stock_analysis.git || true
+          git fetch upstream
+
+      - name: 合并上游更改
+        run: |
+          git checkout main
+          # 尝试合并，如果冲突则以上游版本为准
+          git merge upstream/main --strategy-option theirs --allow-unrelated-histories || exit 0
+
+      - name: 推送更改
+        run: git push origin main
