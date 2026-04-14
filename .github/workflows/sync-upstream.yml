@@ -11,12 +11,13 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true  # 临时允许使用Node.js 20
+    
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
+        uses: actions/checkout@v3  # 使用v3版本，更稳定
+        
       - name: 配置Git身份
         run: |
           git config user.name "github-actions[bot]"
@@ -27,41 +28,8 @@ jobs:
           git remote add upstream https://github.com/ZhuLinsen/daily_stock_analysis.git || true
           git fetch upstream
       
-      - name: 检查是否有更新
-        id: check-updates
+      - name: 合并并推送
         run: |
-          CHANGES=$(git log HEAD..upstream/main --oneline | wc -l)
-          if [ $CHANGES -eq 0 ]; then
-            echo "upstream_has_changes=false" >> $GITHUB_OUTPUT
-            echo "上游仓库无更新"
-          else
-            echo "upstream_has_changes=true" >> $GITHUB_OUTPUT
-            echo "上游仓库有 $CHANGES 个新提交"
-          fi
-      
-      - name: 合并上游更改
-        if: steps.check-updates.outputs.upstream_has_changes == 'true'
-        run: |
-          # 保存你的GitHub Actions配置
-          if [ -f ".github/workflows/sync-upstream.yml" ]; then
-            cp .github/workflows/sync-upstream.yml /tmp/my-sync-workflow.yml
-          fi
-          
-          # 合并上游更改
           git checkout main
-          git merge --ff-only upstream/main || {
-            echo "快速合并失败，尝试三方合并"
-            git merge upstream/main --strategy-option theirs -m "Merge upstream changes"
-          }
-          
-          # 恢复你的GitHub Actions配置
-          if [ -f "/tmp/my-sync-workflow.yml" ]; then
-            cp /tmp/my-sync-workflow.yml .github/workflows/sync-upstream.yml
-            git add .github/workflows/sync-upstream.yml
-            git commit -m "保留自定义工作流配置" || true
-          fi
-      
-      - name: 推送更改
-        if: steps.check-updates.outputs.upstream_has_changes == 'true'
-        run: |
+          git merge --ff-only upstream/main || exit 0
           git push origin main
