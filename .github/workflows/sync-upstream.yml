@@ -1,9 +1,9 @@
-name: 简单同步上游更新
+name: 自动同步上游更新
 
 on:
   schedule:
-    - cron: '0 2 * * 1'  # 每周一凌晨2点
-  workflow_dispatch:      # 允许手动触发
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,23 +15,53 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取完整历史记录
-
+          fetch-depth: 0
+      
       - name: 配置Git身份
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions@github.com"
-
+      
       - name: 添加上游仓库
         run: |
           git remote add upstream https://github.com/ZhuLinsen/daily_stock_analysis.git || true
           git fetch upstream
-
-      - name: 合并上游更改
+      
+      - name: 检查是否有更新
+        id: check-updates
         run: |
+          CHANGES=$(git log HEAD..upstream/main --oneline | wc -l)
+          if [ $CHANGES -eq 0 ]; then
+            echo "upstream_has_changes=false" >> $GITHUB_OUTPUT
+            echo "上游仓库无更新"
+          else
+            echo "upstream_has_changes=true" >> $GITHUB_OUTPUT
+            echo "上游仓库有 $CHANGES 个新提交"
+          fi
+      
+      - name: 合并上游更改
+        if: steps.check-updates.outputs.upstream_has_changes == 'true'
+        run: |
+          # 保存你的GitHub Actions配置
+          if [ -f ".github/workflows/sync-upstream.yml" ]; then
+            cp .github/workflows/sync-upstream.yml /tmp/my-sync-workflow.yml
+          fi
+          
+          # 合并上游更改
           git checkout main
-          # 尝试合并，如果冲突则以上游版本为准
-          git merge upstream/main --strategy-option theirs --allow-unrelated-histories || exit 0
-
+          git merge --ff-only upstream/main || {
+            echo "快速合并失败，尝试三方合并"
+            git merge upstream/main --strategy-option theirs -m "Merge upstream changes"
+          }
+          
+          # 恢复你的GitHub Actions配置
+          if [ -f "/tmp/my-sync-workflow.yml" ]; then
+            cp /tmp/my-sync-workflow.yml .github/workflows/sync-upstream.yml
+            git add .github/workflows/sync-upstream.yml
+            git commit -m "保留自定义工作流配置" || true
+          fi
+      
       - name: 推送更改
-        run: git push origin main
+        if: steps.check-updates.outputs.upstream_has_changes == 'true'
+        run: |
+          git push origin main
