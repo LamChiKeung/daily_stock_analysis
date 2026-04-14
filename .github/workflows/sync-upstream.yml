@@ -5,9 +5,15 @@ on:
     - cron: '0 2 * * 1'  # 每周一凌晨2点自动检查
   workflow_dispatch:      # 允许手动触发
 
+permissions:
+  contents: write  # 添加写入权限
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # 强制使用Node.js 24
+    
     steps:
       - name: 同步上游仓库更改
         uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
